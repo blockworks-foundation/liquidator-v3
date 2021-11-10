@@ -733,11 +733,11 @@ async function liquidatePerps(
   const marketIndex = lowestHealthMarket.marketIndex;
   const perpAccount = liqee.perpAccounts[marketIndex];
   const perpMarket = perpMarkets[lowestHealthMarket.i];
-  const baseRootBank = rootBanks[marketIndex];
-
-  if (!baseRootBank) {
-    throw new Error(`Base root bank not found for ${marketIndex}`);
-  }
+  // const baseRootBank = rootBanks[marketIndex];
+  //
+  // if (!baseRootBank) {
+  //   throw new Error(`Base root bank not found for ${marketIndex}`);
+  // }
 
   if (!perpMarket) {
     throw new Error(`Perp market not found for ${marketIndex}`);
