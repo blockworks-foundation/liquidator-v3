@@ -198,11 +198,10 @@ async function main() {
         );
         const allAOs = mangoAccountsWithAOs.map((ma) => ma.advancedOrdersKey);
 
-        let advancedOrders;
-        [cache, liqorMangoAccount, advancedOrders] = await Promise.all([
+        const advancedOrders = await getMultipleAccounts(connection, allAOs);
+        [cache, liqorMangoAccount] = await Promise.all([
           mangoGroup.loadCache(connection),
           liqorMangoAccount.reload(connection),
-          getMultipleAccounts(connection, allAOs),
         ]);
 
         mangoAccountsWithAOs.forEach((ma, i) => {
