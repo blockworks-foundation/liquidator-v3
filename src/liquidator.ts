@@ -488,7 +488,7 @@ async function liquidateAccount(
   }
 
   const healthComponents = liqee.getHealthComponents(mangoGroup, cache);
-  const healths = liqee.getHealthsFromComponents(
+  const maintHealths = liqee.getHealthsFromComponents(
     mangoGroup,
     cache,
     healthComponents.spot,
@@ -496,11 +496,20 @@ async function liquidateAccount(
     healthComponents.quote,
     'Maint',
   );
+  const initHealths = liqee.getHealthsFromComponents(
+    mangoGroup,
+    cache,
+    healthComponents.spot,
+    healthComponents.perps,
+    healthComponents.quote,
+    'Init',
+  );
 
   let shouldLiquidateSpot = false;
   for (let i = 0; i < mangoGroup.tokens.length; i++) {
     shouldLiquidateSpot = liqee.getNet(cache.rootBankCache[i], i).isNeg();
   }
+  const shouldLiquidatePerps = maintHealths.perp.lt(ZERO_I80F48) || (initHealths.perp.lt(ZERO_I80F48) && liqee.beingLiquidated);
 
   if (shouldLiquidateSpot) {
     await liquidateSpot(
@@ -514,9 +523,7 @@ async function liquidateAccount(
     );
   }
 
-  // TODO - why only liquidate perp if it's less than zero?
-
-  if (healths.perp.lt(ZERO_I80F48)) {
+  if (shouldLiquidatePerps) {
     await liquidatePerps(
       mangoGroup,
       cache,
@@ -527,7 +534,7 @@ async function liquidateAccount(
     );
   }
 
-  if (!shouldLiquidateSpot && !healths.perp.isNeg() && liqee.beingLiquidated) {
+  if (!shouldLiquidateSpot && !maintHealths.perp.isNeg() && liqee.beingLiquidated) {
     // Send a ForceCancelPerp to reset the being_liquidated flag
     await client.forceCancelAllPerpOrdersInMarket(
       mangoGroup,
