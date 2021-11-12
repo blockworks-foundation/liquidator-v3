@@ -198,11 +198,10 @@ async function main() {
         );
         const allAOs = mangoAccountsWithAOs.map((ma) => ma.advancedOrdersKey);
 
-        let advancedOrders;
-        [cache, liqorMangoAccount, advancedOrders] = await Promise.all([
+        const advancedOrders = await getMultipleAccounts(connection, allAOs);
+        [cache, liqorMangoAccount] = await Promise.all([
           mangoGroup.loadCache(connection),
           liqorMangoAccount.reload(connection),
-          getMultipleAccounts(connection, allAOs),
         ]);
 
         mangoAccountsWithAOs.forEach((ma, i) => {
@@ -740,11 +739,11 @@ async function liquidatePerps(
   const marketIndex = lowestHealthMarket.marketIndex;
   const perpAccount = liqee.perpAccounts[marketIndex];
   const perpMarket = perpMarkets[lowestHealthMarket.i];
-  const baseRootBank = rootBanks[marketIndex];
-
-  if (!baseRootBank) {
-    throw new Error(`Base root bank not found for ${marketIndex}`);
-  }
+  // const baseRootBank = rootBanks[marketIndex];
+  //
+  // if (!baseRootBank) {
+  //   throw new Error(`Base root bank not found for ${marketIndex}`);
+  // }
 
   if (!perpMarket) {
     throw new Error(`Perp market not found for ${marketIndex}`);
