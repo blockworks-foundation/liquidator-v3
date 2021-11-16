@@ -58,6 +58,16 @@ const TARGETS = process.env.TARGETS
 const mangoProgramId = groupIds.mangoProgramId;
 const mangoGroupKey = groupIds.publicKey;
 
+// Map with keys representing an order placed and the value containing the epoch time
+// at which the order was placed.
+// Before placing an order to balance the wallet we can check to see if an identical order
+// has been placed recently
+const ordersPlaced = new Map<string, number>();
+// Length of time in ms to wait before placing an identical order
+const orderDupeSafteyWindow = parseInt(
+  process.env.ORDER_DUPE_WINDDOW || '10000',
+);
+
 const payer = new Account(
   JSON.parse(
     process.env.PRIVATE_KEY ||
@@ -969,17 +979,20 @@ async function balanceTokens(
     for (let i = 0; i < groupIds!.spotMarkets.length; i++) {
       const marketIndex = netValues[i][0];
       const market = markets[marketIndex];
-      if (Math.abs(diffs[marketIndex].toNumber()) > market.minOrderSize) {
+      const orderSize = Math.abs(diffs[marketIndex].toNumber());
+      if (orderSize > market.minOrderSize) {
         if (netValues[i][1].gt(ZERO_I80F48)) {
           // sell to close
           const price = mangoGroup
             .getPrice(marketIndex, cache)
             .mul(I80F48.fromNumber(0.95));
           console.log(
-            `Sell to close ${marketIndex} ${Math.abs(
-              diffs[marketIndex].toNumber(),
-            )} @ ${price.toString()}`,
+            `Sell to close ${marketIndex} ${orderSize} @ ${price.toString()}`,
           );
+
+          const orderMapKey = getMapKeyForOrder('sell', orderSize, 'spot', i);
+
+          if (!isIdenticalOrderRecentlyPlaced(orderMapKey)) {
           await client.placeSpotOrder(
             mangoGroup,
             mangoAccount,
@@ -988,9 +1001,13 @@ async function balanceTokens(
             payer,
             'sell',
             price.toNumber(),
-            Math.abs(diffs[marketIndex].toNumber()),
+              orderSize,
             'limit',
           );
+
+            updateOrdersPlacedMap(orderMapKey);
+          }
+
           await client.settleFunds(
             mangoGroup,
             mangoAccount,
@@ -1004,10 +1021,12 @@ async function balanceTokens(
             .mul(I80F48.fromNumber(1.05));
 
           console.log(
-            `Buy to close ${marketIndex} ${Math.abs(
-              diffs[marketIndex].toNumber(),
-            )} @ ${price.toString()}`,
+            `Buy to close ${marketIndex} ${orderSize} @ ${price.toString()}`,
           );
+
+          const orderMapKey = getMapKeyForOrder('sell', orderSize, 'spot', i);
+
+          if (!isIdenticalOrderRecentlyPlaced(orderMapKey)) {
           await client.placeSpotOrder(
             mangoGroup,
             mangoAccount,
@@ -1016,9 +1035,13 @@ async function balanceTokens(
             payer,
             'buy',
             price.toNumber(),
-            Math.abs(diffs[marketIndex].toNumber()),
+              orderSize,
             'limit',
           );
+
+            updateOrdersPlacedMap(orderMapKey);
+          }
+
           await client.settleFunds(
             mangoGroup,
             mangoAccount,
@@ -1108,6 +1131,13 @@ async function closePositions(
           // const liquidationFee =
           //   mangoGroup.perpMarkets[index].liquidationFee.toNumber();
 
+          const orderMapKey = getMapKeyForOrder(
+            side,
+            basePositionSize,
+            'perp',
+            i,
+          );
+
           const orderPrice =
             side == 'sell' ? price.toNumber() * 0.95 : price.toNumber() * 1.05; // TODO: base this on liquidation fee
 
@@ -1120,6 +1150,8 @@ async function closePositions(
               ' for $' +
               orderPrice,
           );
+
+          if (!isIdenticalOrderRecentlyPlaced(orderMapKey)) {
           await client.placePerpOrder(
             mangoGroup,
             mangoAccount,
@@ -1131,6 +1163,8 @@ async function closePositions(
             basePositionSize,
             'ioc',
           );
+            updateOrdersPlacedMap(orderMapKey);
+          }
         }
 
         await mangoAccount.reload(connection, mangoGroup.dexProgramId);
@@ -1155,6 +1189,27 @@ async function closePositions(
   } catch (err) {
     console.error('Error closing positions', err);
   }
+}
+
+// Only allow strings returned by getMapKeyForOrder to be used as order placed keys
+type OrderMapKey = ReturnType<typeof getMapKeyForOrder>;
+
+function getMapKeyForOrder(
+  side: 'buy' | 'sell',
+  size: number,
+  type: 'perp' | 'spot',
+  marketIndex: number,
+) {
+  return side + size + type + marketIndex;
+}
+
+function isIdenticalOrderRecentlyPlaced(key: OrderMapKey) {
+  const now = Date.now();
+  return now - ordersPlaced.get(key) < orderDupeSafteyWindow;
+}
+
+function updateOrdersPlacedMap(orderMapKey: string) {
+  ordersPlaced.set(orderMapKey, Date.now());
 }
 
 function notify(content: string) {
