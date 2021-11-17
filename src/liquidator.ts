@@ -75,8 +75,6 @@ const connection = new Connection(
 );
 const client = new MangoClient(connection, mangoProgramId);
 
-let mangoAccounts: MangoAccount[] = [];
-
 let mangoSubscriptionId = -1;
 let dexSubscriptionId = -1;
 
@@ -162,9 +160,9 @@ async function main() {
   }
 
   console.log(`Liqor Public Key: ${liqorMangoAccount.publicKey.toBase58()}`);
-
-  await refreshAccounts(mangoGroup);
-  watchAccounts(groupIds.mangoProgramId, mangoGroup);
+  let mangoAccounts: MangoAccount[] = [];
+  await refreshAccounts(mangoGroup, mangoAccounts);
+  watchAccounts(groupIds.mangoProgramId, mangoGroup, mangoAccounts);
   const perpMarkets = await Promise.all(
     groupIds.perpMarkets.map((perpMarket) => {
       return mangoGroup.loadPerpMarket(
@@ -310,7 +308,11 @@ async function main() {
   }
 }
 
-function watchAccounts(mangoProgramId: PublicKey, mangoGroup: MangoGroup) {
+function watchAccounts(
+  mangoProgramId: PublicKey,
+  mangoGroup: MangoGroup,
+  mangoAccounts: MangoAccount[],
+) {
   try {
     console.log('Watching accounts...');
     const openOrdersAccountSpan = OpenOrders.getLayout(
@@ -403,25 +405,34 @@ function watchAccounts(mangoProgramId: PublicKey, mangoGroup: MangoGroup) {
       refreshWebsocketInterval,
       mangoProgramId,
       mangoGroup,
+      mangoAccounts,
     );
   }
 }
 
-async function refreshAccounts(mangoGroup: MangoGroup) {
+async function refreshAccounts(
+  mangoGroup: MangoGroup,
+  mangoAccounts: MangoAccount[],
+) {
   try {
     console.log('Refreshing accounts...');
     console.time('getAllMangoAccounts');
-    mangoAccounts = await client.getAllMangoAccounts(
+    mangoAccounts.splice(0, mangoAccounts.length, ...(await client.getAllMangoAccounts(
       mangoGroup,
       undefined,
       true,
-    );
+    )));
     console.timeEnd('getAllMangoAccounts');
     console.log(`Fetched ${mangoAccounts.length} accounts`);
   } catch (err) {
     console.error('Error reloading accounts', err);
   } finally {
-    setTimeout(refreshAccounts, refreshAccountsInterval, mangoGroup);
+    setTimeout(
+      refreshAccounts,
+      refreshAccountsInterval,
+      mangoGroup,
+      mangoAccounts,
+    );
   }
 }
 
@@ -508,7 +519,9 @@ async function liquidateAccount(
   for (let i = 0; i < mangoGroup.tokens.length; i++) {
     shouldLiquidateSpot = liqee.getNet(cache.rootBankCache[i], i).isNeg();
   }
-  const shouldLiquidatePerps = maintHealths.perp.lt(ZERO_I80F48) || (initHealths.perp.lt(ZERO_I80F48) && liqee.beingLiquidated);
+  const shouldLiquidatePerps =
+    maintHealths.perp.lt(ZERO_I80F48) ||
+    (initHealths.perp.lt(ZERO_I80F48) && liqee.beingLiquidated);
 
   if (shouldLiquidateSpot) {
     await liquidateSpot(
@@ -533,7 +546,11 @@ async function liquidateAccount(
     );
   }
 
-  if (!shouldLiquidateSpot && !maintHealths.perp.isNeg() && liqee.beingLiquidated) {
+  if (
+    !shouldLiquidateSpot &&
+    !maintHealths.perp.isNeg() &&
+    liqee.beingLiquidated
+  ) {
     // Send a ForceCancelPerp to reset the being_liquidated flag
     await client.forceCancelAllPerpOrdersInMarket(
       mangoGroup,
