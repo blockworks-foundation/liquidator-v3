@@ -1147,6 +1147,9 @@ async function closePositions(
             orderPrice,
             basePositionSize,
             'ioc',
+            undefined,
+            undefined,
+            true,
           );
         }
 
