@@ -351,7 +351,7 @@ function watchAccounts(
           //console.log('Updated account ' + accountId.toBase58());
         }
       },
-      'singleGossip',
+      'processed',
       [
         { dataSize: MangoAccountLayout.span },
         {
@@ -386,7 +386,7 @@ function watchAccounts(
           console.error('Could not match OpenOrdersAccount to MangoAccount');
         }
       },
-      'singleGossip',
+      'processed',
       [
         { dataSize: openOrdersAccountSpan },
         {
@@ -517,7 +517,10 @@ async function liquidateAccount(
 
   let shouldLiquidateSpot = false;
   for (let i = 0; i < mangoGroup.tokens.length; i++) {
-    shouldLiquidateSpot = liqee.getNet(cache.rootBankCache[i], i).isNeg();
+    if (liqee.getNet(cache.rootBankCache[i], i).isNeg()) {
+      shouldLiquidateSpot = true;
+      break;
+    }
   }
   const shouldLiquidatePerps =
     maintHealths.perp.lt(ZERO_I80F48) ||
