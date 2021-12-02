@@ -34,7 +34,7 @@ envExpand(Env.config());
 
 const interval = parseInt(process.env.INTERVAL || '3500');
 const refreshAccountsInterval = parseInt(
-  process.env.INTERVAL_ACCOUNTS || '120000',
+  process.env.INTERVAL_ACCOUNTS || '600000',
 );
 const refreshWebsocketInterval = parseInt(
   process.env.INTERVAL_WEBSOCKET || '300000',
