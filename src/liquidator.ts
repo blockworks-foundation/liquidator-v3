@@ -480,14 +480,14 @@ async function liquidateAccount(
     throw new Error('Account no longer liquidatable');
   }
 
-  while (liqee.hasAnySpotOrders()) {
+  for (let r = 0; r < 5 && liqee.hasAnySpotOrders(); r++) {
     for (let i = 0; i < mangoGroup.spotMarkets.length; i++) {
-      const spotMarket = spotMarkets[i];
-      const baseRootBank = rootBanks[i];
-      const quoteRootBank = rootBanks[QUOTE_INDEX];
+      if (liqee.inMarginBasket[i]) {
+        const spotMarket = spotMarkets[i];
+        const baseRootBank = rootBanks[i];
+        const quoteRootBank = rootBanks[QUOTE_INDEX];
 
-      if (baseRootBank && quoteRootBank) {
-        if (liqee.inMarginBasket[i]) {
+        if (baseRootBank && quoteRootBank) {
           console.log('forceCancelOrders ', i);
           await client.forceCancelSpotOrders(
             mangoGroup,
