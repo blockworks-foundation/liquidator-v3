@@ -42,6 +42,10 @@ const refreshWebsocketInterval = parseInt(
 const checkTriggers = process.env.CHECK_TRIGGERS
   ? process.env.CHECK_TRIGGERS === 'true'
   : true;
+const liabLimit = I80F48.fromNumber(
+  Math.min(parseFloat(process.env.LIAB_LIMIT || '0.9'), 1),
+);
+
 const config = new Config(IDS);
 
 const cluster = (process.env.CLUSTER || 'mainnet') as Cluster;
@@ -621,11 +625,13 @@ async function liquidateSpot(
       ? mangoGroup.spotMarkets[maxNetIndex].initAssetWeight
       : ONE_I80F48;
 
-    const maxLiabTransfer = liqorInitHealth.div(
-      mangoGroup
-        .getPriceNative(minNetIndex, cache)
-        .mul(liabInitLiabWeight.sub(assetInitAssetWeight).abs()),
-    );
+    const maxLiabTransfer = liqorInitHealth
+      .div(
+        mangoGroup
+          .getPriceNative(minNetIndex, cache)
+          .mul(liabInitLiabWeight.sub(assetInitAssetWeight).abs()),
+      )
+      .mul(liabLimit);
 
     if (liqee.isBankrupt) {
       console.log('Bankrupt account', liqee.publicKey.toBase58());
@@ -676,11 +682,11 @@ async function liquidateSpot(
             return b.perpHealth.sub(a.perpHealth).toNumber();
           })[0];
 
-        let maxLiabTransfer = liqorInitHealth;
+        let maxLiabTransfer = liqorInitHealth.mul(liabLimit);
         if (maxNetIndex !== QUOTE_INDEX) {
           maxLiabTransfer = liqorInitHealth.div(
             ONE_I80F48.sub(assetInitAssetWeight),
-          );
+          ).mul(liabLimit);
         }
 
         console.log('liquidateTokenAndPerp', highestHealthMarket.marketIndex);
@@ -694,7 +700,7 @@ async function liquidateSpot(
           highestHealthMarket.marketIndex,
           AssetType.Token,
           minNetIndex,
-          liqee.perpAccounts[highestHealthMarket.marketIndex].quotePosition,
+          maxLiabTransfer,
         );
       } else {
         await client.liquidateTokenAndToken(
@@ -771,8 +777,9 @@ async function liquidatePerps(
     throw new Error(`Perp market not found for ${marketIndex}`);
   }
 
-  if (liqee.isBankrupt) {
-    const maxLiabTransfer = perpAccount.quotePosition.abs();
+  const liqorInitHealth = liqor.getHealth(mangoGroup, cache, 'Init');
+  let maxLiabTransfer = liqorInitHealth.mul(liabLimit);
+  if (liqee.isBankrupt) {    
     const quoteRootBank = rootBanks[QUOTE_INDEX];
     if (quoteRootBank) {
       // don't do anything it if quote position is zero
@@ -814,7 +821,7 @@ async function liquidatePerps(
         if (maxNetIndex !== QUOTE_INDEX) {
           maxLiabTransfer = liqorInitHealth.div(
             ONE_I80F48.sub(mangoGroup.spotMarkets[maxNetIndex].initAssetWeight),
-          );
+          ).mul(liabLimit);
         }
         await client.liquidateTokenAndPerp(
           mangoGroup,
@@ -846,6 +853,7 @@ async function liquidatePerps(
             .div(mangoGroup.getPriceNative(marketIndex, cache))
             .div(I80F48.fromI64(perpMarketInfo.baseLotSize))
             .floor()
+            .mul(liabLimit)
             .toNumber(),
         );
       } else {
@@ -855,6 +863,7 @@ async function liquidatePerps(
             .div(mangoGroup.getPriceNative(marketIndex, cache))
             .div(I80F48.fromI64(perpMarketInfo.baseLotSize))
             .floor()
+            .mul(liabLimit)
             .toNumber(),
         ).neg();
       }
@@ -869,10 +878,9 @@ async function liquidatePerps(
       );
     }
 
-    await sleep(interval);
     await liqee.reload(connection, mangoGroup.dexProgramId);
     if (liqee.isBankrupt) {
-      const maxLiabTransfer = perpAccount.quotePosition.abs();
+      const maxLiabTransfer = liqorInitHealth.mul(liabLimit);
       const quoteRootBank = rootBanks[QUOTE_INDEX];
       if (quoteRootBank) {
         console.log('resolvePerpBankruptcy', maxLiabTransfer.toString());
