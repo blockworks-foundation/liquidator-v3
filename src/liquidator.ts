@@ -318,7 +318,7 @@ function watchAccounts(
           mangoAccounts[index] = mangoAccount;
         }
       },
-      'singleGossip',
+      'processed',
       [
         { dataSize: MangoAccountLayout.span },
         {
@@ -352,7 +352,7 @@ function watchAccounts(
           console.error('Could not match OpenOrdersAccount to MangoAccount');
         }
       },
-      'singleGossip',
+      'processed',
       [
         { dataSize: openOrdersAccountSpan },
         {
@@ -524,6 +524,7 @@ async function liquidateAccount(
   for (let i = 0; i < mangoGroup.tokens.length; i++) {
     if (liqee.getNet(cache.rootBankCache[i], i).isNeg()) {
       shouldLiquidateSpot = true;
+      break;
     }
   }
 
