@@ -383,11 +383,14 @@ async function refreshAccounts(
   try {
     console.log('Refreshing accounts...');
     console.time('getAllMangoAccounts');
-    mangoAccounts.splice(0, mangoAccounts.length, ...(await client.getAllMangoAccounts(
-      mangoGroup,
-      undefined,
-      true,
-    )));
+
+    mangoAccounts.splice(
+      0,
+      mangoAccounts.length,
+      ...(await client.getAllMangoAccounts(mangoGroup, undefined, true)),
+    );
+    shuffleArray(mangoAccounts);
+
     console.timeEnd('getAllMangoAccounts');
     console.log(`Fetched ${mangoAccounts.length} accounts`);
   } catch (err) {
@@ -1163,6 +1166,13 @@ async function closePositions(
     }
   } catch (err) {
     console.error('Error closing positions', err);
+  }
+}
+
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
   }
 }
 
