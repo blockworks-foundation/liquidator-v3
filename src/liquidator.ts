@@ -473,11 +473,10 @@ async function liquidateAccount(
         );
       }),
     );
-    await sleep(interval * 2);
-  }
-  await liqee.reload(connection, mangoGroup.dexProgramId);
-  if (!liqee.isLiquidatable(mangoGroup, cache)) {
-    throw new Error('Account no longer liquidatable');
+    await liqee.reload(connection, mangoGroup.dexProgramId);
+    if (!liqee.isLiquidatable(mangoGroup, cache)) {
+      throw new Error('Account no longer liquidatable');
+    }
   }
 
   for (let r = 0; r < 5 && liqee.hasAnySpotOrders(); r++) {
@@ -517,45 +516,30 @@ async function liquidateAccount(
     healthComponents.quote,
     'Maint',
   );
-  const initHealths = liqee.getHealthsFromComponents(
-    mangoGroup,
-    cache,
-    healthComponents.spot,
-    healthComponents.perps,
-    healthComponents.quote,
-    'Init',
-  );
 
   let shouldLiquidateSpot = false;
   for (let i = 0; i < mangoGroup.tokens.length; i++) {
-    shouldLiquidateSpot = liqee.getNet(cache.rootBankCache[i], i).isNeg();
+    if (liqee.getNet(cache.rootBankCache[i], i).isNeg()) {
+      shouldLiquidateSpot = true;
+    }
   }
-  const shouldLiquidatePerps =
-    maintHealths.perp.lt(ZERO_I80F48) ||
-    (initHealths.perp.lt(ZERO_I80F48) && liqee.beingLiquidated);
 
   if (shouldLiquidateSpot) {
     await liquidateSpot(
       mangoGroup,
       cache,
-      spotMarkets,
       perpMarkets,
       rootBanks,
       liqee,
       liqor,
     );
+    await liqee.reload(connection, mangoGroup.dexProgramId);
+    if (!liqee.isLiquidatable(mangoGroup, cache)) {
+      return;
+    }
   }
 
-  if (shouldLiquidatePerps) {
-    await liquidatePerps(
-      mangoGroup,
-      cache,
-      perpMarkets,
-      rootBanks,
-      liqee,
-      liqor,
-    );
-  }
+  await liquidatePerps(mangoGroup, cache, perpMarkets, rootBanks, liqee, liqor);
 
   if (
     !shouldLiquidateSpot &&
@@ -577,7 +561,6 @@ async function liquidateAccount(
 async function liquidateSpot(
   mangoGroup: MangoGroup,
   cache: MangoCache,
-  spotMarkets: Market[],
   perpMarkets: PerpMarket[],
   rootBanks: (RootBank | undefined)[],
   liqee: MangoAccount,
@@ -922,6 +905,40 @@ function getDiffsAndNet(
   return { diffs, netValues };
 }
 
+async function balanceAccount(
+  mangoGroup: MangoGroup,
+  mangoAccount: MangoAccount,
+  mangoCache: MangoCache,
+  spotMarkets: Market[],
+  perpMarkets: PerpMarket[],
+) {
+  const { diffs, netValues } = getDiffsAndNet(
+    mangoGroup,
+    mangoAccount,
+    mangoCache,
+  );
+  const tokensUnbalanced = netValues.some(
+    (nv) => Math.abs(diffs[nv[0]].toNumber()) > spotMarkets[nv[0]].minOrderSize,
+  );
+  const positionsUnbalanced = perpMarkets.some((pm) => {
+    const index = mangoGroup.getPerpMarketIndex(pm.publicKey);
+    const perpAccount = mangoAccount.perpAccounts[index];
+    const basePositionSize = Math.abs(
+      pm.baseLotsToNumber(perpAccount.basePosition),
+    );
+
+    return basePositionSize != 0 || perpAccount.quotePosition.gt(ZERO_I80F48);
+  });
+
+  if (tokensUnbalanced) {
+    await balanceTokens(mangoGroup, mangoAccount, spotMarkets);
+  }
+
+  if (positionsUnbalanced) {
+    await closePositions(mangoGroup, mangoAccount, perpMarkets);
+  }
+}
+
 async function balanceTokens(
   mangoGroup: MangoGroup,
   mangoAccount: MangoAccount,
@@ -1058,40 +1075,6 @@ async function balanceTokens(
     }
   } catch (err) {
     console.error('Error rebalancing tokens', err);
-  }
-}
-
-async function balanceAccount(
-  mangoGroup: MangoGroup,
-  mangoAccount: MangoAccount,
-  mangoCache: MangoCache,
-  spotMarkets: Market[],
-  perpMarkets: PerpMarket[],
-) {
-  const { diffs, netValues } = getDiffsAndNet(
-    mangoGroup,
-    mangoAccount,
-    mangoCache,
-  );
-  const tokensUnbalanced = netValues.some(
-    (nv) => Math.abs(diffs[nv[0]].toNumber()) > spotMarkets[nv[0]].minOrderSize,
-  );
-  const positionsUnbalanced = perpMarkets.some((pm) => {
-    const index = mangoGroup.getPerpMarketIndex(pm.publicKey);
-    const perpAccount = mangoAccount.perpAccounts[index];
-    const basePositionSize = Math.abs(
-      pm.baseLotsToNumber(perpAccount.basePosition),
-    );
-
-    return basePositionSize != 0 || perpAccount.quotePosition.gt(ZERO_I80F48);
-  });
-
-  if (tokensUnbalanced) {
-    await balanceTokens(mangoGroup, mangoAccount, spotMarkets);
-  }
-
-  if (positionsUnbalanced) {
-    await closePositions(mangoGroup, mangoAccount, perpMarkets);
   }
 }
 
