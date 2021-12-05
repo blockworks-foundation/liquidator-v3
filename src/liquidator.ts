@@ -1100,6 +1100,10 @@ async function closePositions(
             side == 'sell'
               ? price.mul(ONE_I80F48.sub(liquidationFee)).toNumber()
               : price.mul(ONE_I80F48.add(liquidationFee)).toNumber();
+          const bookSideInfo =
+            side == 'sell'
+              ? await connection.getAccountInfo(perpMarket.bids)
+              : await connection.getAccountInfo(perpMarket.asks);
 
           console.log(
             `${side}ing ${basePositionSize} of ${groupIds?.perpMarkets[index].baseSymbol}-PERP for $${orderPrice}`,
@@ -1115,8 +1119,8 @@ async function closePositions(
             orderPrice,
             basePositionSize,
             'ioc',
-            undefined,
-            undefined,
+            0,
+            bookSideInfo ? bookSideInfo : undefined,
             true,
           );
         }
