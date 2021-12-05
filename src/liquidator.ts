@@ -39,12 +39,16 @@ const refreshAccountsInterval = parseInt(
 const refreshWebsocketInterval = parseInt(
   process.env.INTERVAL_WEBSOCKET || '300000',
 );
+const rebalanceInterval = parseInt(
+  process.env.INTERVAL_WEBSOCKET || '10000',
+);
 const checkTriggers = process.env.CHECK_TRIGGERS
   ? process.env.CHECK_TRIGGERS === 'true'
   : true;
 const liabLimit = I80F48.fromNumber(
   Math.min(parseFloat(process.env.LIAB_LIMIT || '0.9'), 1),
 );
+let lastRebalance = Date.now()
 
 const config = new Config(IDS);
 
@@ -636,15 +640,6 @@ async function liquidateSpot(
         await liqee.reload(connection, mangoGroup.dexProgramId);
       }
     } else {
-      console.log(
-        `Liquidating max ${maxLiabTransfer.toString()}/${liqee.getNativeBorrow(
-          liabRootBank,
-          minNetIndex,
-        )} of liab ${groupIds?.tokens[minNetIndex].symbol} for asset ${
-          groupIds?.tokens[maxNetIndex].symbol
-        }`,
-      );
-
       if (maxNet.lt(ZERO_I80F48) || maxNetIndex == -1) {
         const highestHealthMarket = perpMarkets
           .map((perpMarket, i) => {
@@ -690,6 +685,7 @@ async function liquidateSpot(
           maxLiabTransfer,
         );
       } else {
+        console.log('liquidateTokenAndToken', maxNetIndex, minNetIndex);
         await client.liquidateTokenAndToken(
           mangoGroup,
           liqee,
@@ -916,6 +912,10 @@ async function balanceAccount(
   spotMarkets: Market[],
   perpMarkets: PerpMarket[],
 ) {
+  if (Date.now() < lastRebalance + rebalanceInterval) {
+    return;
+  }
+
   const { diffs, netValues } = getDiffsAndNet(
     mangoGroup,
     mangoAccount,
@@ -941,6 +941,8 @@ async function balanceAccount(
   if (positionsUnbalanced) {
     await closePositions(mangoGroup, mangoAccount, perpMarkets);
   }
+
+  lastRebalance = Date.now();
 }
 
 async function balanceTokens(
@@ -1028,7 +1030,7 @@ async function balanceTokens(
         const quantity = Math.abs(diffs[marketIndex].toNumber());
 
         console.log(
-          `${side}ing ${quantity} of ${groupIds?.spotMarkets[i].baseSymbol} for $${price}`,
+          `${side}ing ${quantity} of ${groupIds?.spotMarkets[marketIndex].baseSymbol} for $${price}`, ONE_I80F48.sub(liquidationFee)
         );
         await client.placeSpotOrder(
           mangoGroup,
@@ -1099,7 +1101,7 @@ async function closePositions(
               : price.mul(ONE_I80F48.add(liquidationFee)).toNumber();
 
           console.log(
-            `${side}ing ${basePositionSize} of ${groupIds?.perpMarkets[i].baseSymbol}-PERP for $${orderPrice}`,
+            `${side}ing ${basePositionSize} of ${groupIds?.perpMarkets[index].baseSymbol}-PERP for $${orderPrice}`,
           );
 
           await client.placePerpOrder(
@@ -1159,7 +1161,7 @@ function notify(content: string) {
   }
 }
 
-process.on('unhandledException', (err, promise) => {
+process.on('unhandledRejection', (err, promise) => {
   console.error(`Unhandled rejection (promise: ${promise} reason:${err})`);
 });
 
