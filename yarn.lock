@@ -31,8 +31,8 @@
     regenerator-runtime "^0.13.4"
 
 "@blockworks-foundation/mango-client@git+https://github.com/blockworks-foundation/mango-client-v3.git":
-  version "3.2.9"
-  resolved "git+https://github.com/blockworks-foundation/mango-client-v3.git#a24f41584cff5a7548e3f9aafb3357036c55317c"
+  version "3.2.14"
+  resolved "git+https://github.com/blockworks-foundation/mango-client-v3.git#7fb0f294a6c7cec98348cefbbfc3a725bc10c232"
   dependencies:
     "@project-serum/anchor" "^0.16.2"
     "@project-serum/serum" "0.13.55"
