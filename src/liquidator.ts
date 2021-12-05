@@ -304,7 +304,7 @@ function watchAccounts(
 
     mangoSubscriptionId = connection.onProgramAccountChange(
       mangoProgramId,
-      ({ accountId, accountInfo }) => {
+      async ({ accountId, accountInfo }) => {
         const index = mangoAccounts.findIndex((account) =>
           account.publicKey.equals(accountId),
         );
@@ -320,6 +320,7 @@ function watchAccounts(
             mangoAccounts[index].spotOpenOrdersAccounts;
           mangoAccount.spotOpenOrdersAccounts = spotOpenOrdersAccounts;
           mangoAccounts[index] = mangoAccount;
+          await mangoAccount.loadOpenOrders(connection, mangoGroup.dexProgramId)
         }
       },
       'processed',
