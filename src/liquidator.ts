@@ -645,7 +645,7 @@ async function liquidateSpot(
         }`,
       );
 
-      if (maxNet.lt(ONE_I80F48) || maxNetIndex == -1) {
+      if (maxNet.lt(ZERO_I80F48) || maxNetIndex == -1) {
         const highestHealthMarket = perpMarkets
           .map((perpMarket, i) => {
             const marketIndex = mangoGroup.getPerpMarketIndex(
