@@ -39,7 +39,7 @@ const refreshAccountsInterval = parseInt(
 const refreshWebsocketInterval = parseInt(
   process.env.INTERVAL_WEBSOCKET || '300000',
 );
-const rebalanceInterval = parseInt(process.env.INTERVAL_WEBSOCKET || '10000');
+const rebalanceInterval = parseInt(process.env.INTERVAL_REBALANCE || '10000');
 const checkTriggers = process.env.CHECK_TRIGGERS
   ? process.env.CHECK_TRIGGERS === 'true'
   : true;

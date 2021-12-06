@@ -21,6 +21,7 @@ To run the liquidator you will need:
 | `INTERVAL` | `3500` | Milliseconds to wait before checking for sick accounts |
 | `INTERVAL_ACCOUNTS` | `600000` | Milliseconds to wait before reloading all Mango accounts |
 | `INTERVAL_WEBSOCKET` | `300000` | Milliseconds to wait before reconnecting to the websocket |
+| `INTERVAL_REBALANCE` | `10000` | Milliseconds to wait before reconnecting to the websocket |
 | `LIQOR_PK` | N/A | Liqor Mango Account Public Key, by default uses the largest value account owned by the keypair |
 | `WEBHOOK_URL` | N/A | Discord webhook URL to post liquidation events and errors to |
 | `LIAB_LIMIT` | `0.9` | Percentage of your available margin to use when taking on liabs |
