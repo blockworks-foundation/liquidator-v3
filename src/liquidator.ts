@@ -329,7 +329,6 @@ function watchAccounts(
             connection,
             mangoGroup.dexProgramId,
           );
-          console.log('updated account', mangoAccount.publicKey.toBase58())
         }
       },
       'processed',
