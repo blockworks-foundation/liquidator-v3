@@ -329,6 +329,7 @@ function watchAccounts(
             connection,
             mangoGroup.dexProgramId,
           );
+          console.log('updated account', mangoAccount.publicKey.toBase58())
         }
       },
       'processed',
@@ -1119,7 +1120,7 @@ async function closePositions(
               : await connection.getAccountInfo(perpMarket.asks);
 
           console.log(
-            `${side}ing ${basePositionSize} of ${groupIds?.perpMarkets[index].baseSymbol}-PERP for $${orderPrice}`,
+            `${side}ing ${basePositionSize} of ${groupIds?.perpMarkets[i].baseSymbol}-PERP for $${orderPrice}`,
           );
 
           await client.placePerpOrder(
