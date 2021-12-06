@@ -39,16 +39,14 @@ const refreshAccountsInterval = parseInt(
 const refreshWebsocketInterval = parseInt(
   process.env.INTERVAL_WEBSOCKET || '300000',
 );
-const rebalanceInterval = parseInt(
-  process.env.INTERVAL_WEBSOCKET || '10000',
-);
+const rebalanceInterval = parseInt(process.env.INTERVAL_WEBSOCKET || '10000');
 const checkTriggers = process.env.CHECK_TRIGGERS
   ? process.env.CHECK_TRIGGERS === 'true'
   : true;
 const liabLimit = I80F48.fromNumber(
   Math.min(parseFloat(process.env.LIAB_LIMIT || '0.9'), 1),
 );
-let lastRebalance = Date.now()
+let lastRebalance = Date.now();
 
 const config = new Config(IDS);
 
@@ -122,8 +120,8 @@ async function main() {
       }
     }
   } catch (err: any) {
-    console.error(err);
-    throw new Error(`Error loading liqor Mango Account: ${err.message}`);
+    console.error(`Error loading liqor Mango Account: ${err}`);
+    return;
   }
 
   console.log(`Liqor Public Key: ${liqorMangoAccount.publicKey.toBase58()}`);
@@ -197,10 +195,19 @@ async function main() {
               mangoAccount,
             );
           } catch (err: any) {
-            if (!err.message.contains('MangoErrorCode::InvalidParam')) {
+            if (err.message.includes('MangoErrorCode::InvalidParam')) {
               console.error(
-                `Failed to execute trigger order for ${mangoAccountKeyString}`,
-                err,
+                'Failed to execute trigger order, order already executed',
+              );
+            } else if (
+              err.message.includes('MangoErrorCode::TriggerConditionFalse')
+            ) {
+              console.error(
+                'Failed to execute trigger order, trigger condition was false',
+              );
+            } else {
+              console.error(
+                `Failed to execute trigger order for ${mangoAccountKeyString}: ${err}`,
               );
             }
           }
@@ -243,11 +250,9 @@ async function main() {
 
           console.log('Liquidated account', mangoAccountKeyString);
           notify(`Liquidated account ${mangoAccountKeyString}`);
-        } catch (err) {
+        } catch (err: any) {
           console.error(
-            'Failed to liquidate account',
-            mangoAccountKeyString,
-            err,
+            `Failed to liquidate account ${mangoAccountKeyString}: ${err}`,
           );
           notify(
             `Failed to liquidate account ${mangoAccountKeyString}: ${err}`,
@@ -320,7 +325,10 @@ function watchAccounts(
             mangoAccounts[index].spotOpenOrdersAccounts;
           mangoAccount.spotOpenOrdersAccounts = spotOpenOrdersAccounts;
           mangoAccounts[index] = mangoAccount;
-          await mangoAccount.loadOpenOrders(connection, mangoGroup.dexProgramId)
+          await mangoAccount.loadOpenOrders(
+            connection,
+            mangoGroup.dexProgramId,
+          );
         }
       },
       'processed',
@@ -398,8 +406,8 @@ async function refreshAccounts(
 
     console.timeEnd('getAllMangoAccounts');
     console.log(`Fetched ${mangoAccounts.length} accounts`);
-  } catch (err) {
-    console.error('Error reloading accounts', err);
+  } catch (err: any) {
+    console.error(`Error reloading accounts: ${err}`);
   } finally {
     setTimeout(
       refreshAccounts,
@@ -413,7 +421,7 @@ async function refreshAccounts(
 /**
  * Process trigger orders for one mango account
  */
- async function processTriggerOrders(
+async function processTriggerOrders(
   mangoGroup: MangoGroup,
   cache: MangoCache,
   perpMarkets: PerpMarket[],
@@ -667,9 +675,9 @@ async function liquidateSpot(
 
         let maxLiabTransfer = liqorInitHealth.mul(liabLimit);
         if (maxNetIndex !== QUOTE_INDEX) {
-          maxLiabTransfer = liqorInitHealth.div(
-            ONE_I80F48.sub(assetInitAssetWeight),
-          ).mul(liabLimit);
+          maxLiabTransfer = liqorInitHealth
+            .div(ONE_I80F48.sub(assetInitAssetWeight))
+            .mul(liabLimit);
         }
 
         console.log('liquidateTokenAndPerp', highestHealthMarket.marketIndex);
@@ -763,7 +771,7 @@ async function liquidatePerps(
 
   const liqorInitHealth = liqor.getHealth(mangoGroup, cache, 'Init');
   let maxLiabTransfer = liqorInitHealth.mul(liabLimit);
-  if (liqee.isBankrupt) {    
+  if (liqee.isBankrupt) {
     const quoteRootBank = rootBanks[QUOTE_INDEX];
     if (quoteRootBank) {
       // don't do anything it if quote position is zero
@@ -803,9 +811,13 @@ async function liquidatePerps(
         // we know that since sum of perp healths is negative, lowest perp market must be negative
         console.log('liquidateTokenAndPerp', marketIndex);
         if (maxNetIndex !== QUOTE_INDEX) {
-          maxLiabTransfer = liqorInitHealth.div(
-            ONE_I80F48.sub(mangoGroup.spotMarkets[maxNetIndex].initAssetWeight),
-          ).mul(liabLimit);
+          maxLiabTransfer = liqorInitHealth
+            .div(
+              ONE_I80F48.sub(
+                mangoGroup.spotMarkets[maxNetIndex].initAssetWeight,
+              ),
+            )
+            .mul(liabLimit);
         }
         await client.liquidateTokenAndPerp(
           mangoGroup,
@@ -1031,7 +1043,8 @@ async function balanceTokens(
         const quantity = Math.abs(diffs[marketIndex].toNumber());
 
         console.log(
-          `${side}ing ${quantity} of ${groupIds?.spotMarkets[marketIndex].baseSymbol} for $${price}`, ONE_I80F48.sub(liquidationFee)
+          `${side}ing ${quantity} of ${groupIds?.spotMarkets[marketIndex].baseSymbol} for $${price}`,
+          ONE_I80F48.sub(liquidationFee).toString(),
         );
         await client.placeSpotOrder(
           mangoGroup,
@@ -1166,8 +1179,8 @@ function notify(content: string) {
   }
 }
 
-process.on('unhandledRejection', (err, promise) => {
-  console.error(`Unhandled rejection (promise: ${promise} reason:${err})`);
+process.on('unhandledRejection', (err) => {
+  console.error(`Unhandled rejection: ${err})`);
 });
 
 main();
