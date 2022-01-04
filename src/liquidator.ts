@@ -1038,13 +1038,16 @@ async function balanceTokens(
         const side = netValues[i][1].gt(ZERO_I80F48) ? 'sell' : 'buy';
         const price = mangoGroup
           .getPrice(marketIndex, cache)
-          .mul(ONE_I80F48.sub(liquidationFee))
+          .mul(
+            side == 'buy'
+              ? ONE_I80F48.add(liquidationFee)
+              : ONE_I80F48.sub(liquidationFee),
+          )
           .toNumber();
         const quantity = Math.abs(diffs[marketIndex].toNumber());
 
         console.log(
           `${side}ing ${quantity} of ${groupIds?.spotMarkets[marketIndex].baseSymbol} for $${price}`,
-          ONE_I80F48.sub(liquidationFee).toString(),
         );
         await client.placeSpotOrder(
           mangoGroup,
