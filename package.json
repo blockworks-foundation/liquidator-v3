@@ -36,12 +36,12 @@
     "trailingComma": "all"
   },
   "dependencies": {
-    "@blockworks-foundation/mango-client": "git+https://github.com/blockworks-foundation/mango-client-v3.git",
+    "@blockworks-foundation/mango-client": "latest",
     "@project-serum/anchor": "^0.16.2",
     "@project-serum/serum": "0.13.55",
     "@project-serum/sol-wallet-adapter": "^0.2.0",
     "@solana/spl-token": "^0.1.6",
-    "@solana/web3.js": "1.21.0",
+    "@solana/web3.js": "^1.31.0",
     "axios": "^0.21.1",
     "big.js": "^6.1.1",
     "bigint-buffer": "^1.1.5",
