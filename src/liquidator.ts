@@ -902,17 +902,18 @@ function getDiffsAndNet(
   cache: MangoCache,
 ) {
   const diffs: I80F48[] = [];
-  const netValues: [number, I80F48][] = [];
+  const netValues: [number, I80F48, number][] = [];
   // Go to each base currency and see if it's above or below target
 
   for (let i = 0; i < groupIds!.spotMarkets.length; i++) {
     const target = TARGETS[i] !== undefined ? TARGETS[i] : 0;
+    const marketIndex = groupIds!.spotMarkets[i].marketIndex;
     const diff = mangoAccount
-      .getUiDeposit(cache.rootBankCache[i], mangoGroup, i)
-      .sub(mangoAccount.getUiBorrow(cache.rootBankCache[i], mangoGroup, i))
+      .getUiDeposit(cache.rootBankCache[marketIndex], mangoGroup, marketIndex)
+      .sub(mangoAccount.getUiBorrow(cache.rootBankCache[marketIndex], mangoGroup, marketIndex))
       .sub(I80F48.fromNumber(target));
     diffs.push(diff);
-    netValues.push([i, diff.mul(cache.priceCache[i].price)]);
+    netValues.push([i, diff.mul(cache.priceCache[i].price), marketIndex]);
   }
 
   return { diffs, netValues };
@@ -984,8 +985,9 @@ async function balanceTokens(
       : [];
 
     for (let i = 0; i < markets.length; i++) {
+      const marketIndex = mangoGroup.getSpotMarketIndex(markets[i].publicKey);
       const orders = [...bids[i], ...asks[i]].filter((o) =>
-        o.openOrdersAddress.equals(mangoAccount.spotOpenOrders[i]),
+        o.openOrdersAddress.equals(mangoAccount.spotOpenOrders[marketIndex]),
       );
 
       for (const order of orders) {
@@ -1009,7 +1011,8 @@ async function balanceTokens(
     );
     const settlePromises: Promise<string>[] = [];
     for (let i = 0; i < markets.length; i++) {
-      const oo = openOrders[i];
+      const marketIndex = mangoGroup.getSpotMarketIndex(markets[i].publicKey);
+      const oo = openOrders[marketIndex];
       if (
         oo &&
         (oo.quoteTokenTotal.add(oo['referrerRebatesAccrued']).gt(new BN(0)) ||
@@ -1031,10 +1034,12 @@ async function balanceTokens(
 
     netValues.sort((a, b) => b[1].sub(a[1]).toNumber());
     for (let i = 0; i < groupIds!.spotMarkets.length; i++) {
-      const marketIndex = netValues[i][0];
-      const market = markets[marketIndex];
+      const marketIndex = netValues[i][2];
+      const netIndex = netValues[i][0];
+      const marketConfig = groupIds!.spotMarkets.find((m) => m.marketIndex == marketIndex)!
+      const market = markets.find((m) => m.publicKey.equals(mangoGroup.spotMarkets[marketIndex].spotMarket))!;
       const liquidationFee = mangoGroup.spotMarkets[marketIndex].liquidationFee;
-      if (Math.abs(diffs[marketIndex].toNumber()) > market.minOrderSize) {
+      if (Math.abs(diffs[netIndex].toNumber()) > market!.minOrderSize) {
         const side = netValues[i][1].gt(ZERO_I80F48) ? 'sell' : 'buy';
         const price = mangoGroup
           .getPrice(marketIndex, cache)
@@ -1044,20 +1049,20 @@ async function balanceTokens(
               : ONE_I80F48.sub(liquidationFee),
           )
           .toNumber();
-        const quantity = Math.abs(diffs[marketIndex].toNumber());
+        const quantity = Math.abs(diffs[netIndex].toNumber());
 
         console.log(
-          `${side}ing ${quantity} of ${groupIds?.spotMarkets[marketIndex].baseSymbol} for $${price}`,
+          `${side}ing ${quantity} of ${marketConfig.baseSymbol} for $${price}`,
         );
         await client.placeSpotOrder(
           mangoGroup,
           mangoAccount,
           mangoGroup.mangoCache,
-          markets[marketIndex],
+          market,
           payer,
           side,
           price,
-          Math.abs(diffs[marketIndex].toNumber()),
+          Math.abs(diffs[netIndex].toNumber()),
           'limit',
         );
         await client.settleFunds(
