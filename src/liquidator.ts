@@ -269,7 +269,7 @@ async function main() {
       }
 
       cache = await mangoGroup.loadCache(connection);
-      liqorMangoAccount.reload(connection, mangoGroup.dexProgramId);
+      await liqorMangoAccount.reload(connection, mangoGroup.dexProgramId);
 
       // Check need to rebalance again after checking accounts
       await balanceAccount(
@@ -310,25 +310,29 @@ function watchAccounts(
     mangoSubscriptionId = connection.onProgramAccountChange(
       mangoProgramId,
       async ({ accountId, accountInfo }) => {
-        const index = mangoAccounts.findIndex((account) =>
-          account.publicKey.equals(accountId),
-        );
-
-        const mangoAccount = new MangoAccount(
-          accountId,
-          MangoAccountLayout.decode(accountInfo.data),
-        );
-        if (index == -1) {
-          mangoAccounts.push(mangoAccount);
-        } else {
-          const spotOpenOrdersAccounts =
-            mangoAccounts[index].spotOpenOrdersAccounts;
-          mangoAccount.spotOpenOrdersAccounts = spotOpenOrdersAccounts;
-          mangoAccounts[index] = mangoAccount;
-          await mangoAccount.loadOpenOrders(
-            connection,
-            mangoGroup.dexProgramId,
+        try {
+          const index = mangoAccounts.findIndex((account) =>
+            account.publicKey.equals(accountId),
           );
+
+          const mangoAccount = new MangoAccount(
+            accountId,
+            MangoAccountLayout.decode(accountInfo.data),
+          );
+          if (index == -1) {
+            mangoAccounts.push(mangoAccount);
+          } else {
+            const spotOpenOrdersAccounts =
+              mangoAccounts[index].spotOpenOrdersAccounts;
+            mangoAccount.spotOpenOrdersAccounts = spotOpenOrdersAccounts;
+            mangoAccounts[index] = mangoAccount;
+            await mangoAccount.loadOpenOrders(
+              connection,
+              mangoGroup.dexProgramId,
+            );
+          }
+        } catch (err) {
+          console.error(`could not update mango account ${err}`);
         }
       },
       'processed',
@@ -451,7 +455,7 @@ async function processTriggerOrders(
       console.log(
         `Executing order for account ${mangoAccount.publicKey.toBase58()}`,
       );
-      await client.executePerpTriggerOrder(
+      return client.executePerpTriggerOrder(
         mangoGroup,
         mangoAccount,
         cache,
@@ -1182,8 +1186,8 @@ function notify(content: string) {
   }
 }
 
-process.on('unhandledRejection', (err) => {
-  console.error(`Unhandled rejection: ${err})`);
+process.on('unhandledRejection', (err: any, p: any) => {
+  console.error(`Unhandled rejection: ${err} promise: ${p})`);
 });
 
 main();
