@@ -57,8 +57,13 @@ if (!groupIds) {
   throw new Error(`Group ${groupName} not found`);
 }
 
+// Target values to keep in spot, ordered the same as in mango client's ids.json
+// Example:
+//
+//         MNGO BTC ETH SOL USDT SRM RAY COPE FTT MSOL
+// TARGETS=0    0   0   1   0    0   0   0    0   0
 const TARGETS = process.env.TARGETS
-  ? process.env.TARGETS.split(' ').map((s) => parseFloat(s))
+  ? process.env.TARGETS.replace(/\s+/g,' ').trim().split(' ').map((s) => parseFloat(s))
   : [0, 0, 0, 0, 0, 0, 0, 0, 0];
 
 const mangoProgramId = groupIds.mangoProgramId;
