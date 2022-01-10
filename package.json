@@ -42,6 +42,7 @@
     "@project-serum/sol-wallet-adapter": "^0.2.0",
     "@solana/spl-token": "^0.1.6",
     "@solana/web3.js": "^1.31.0",
+    "ansi-regex": "^6.0.1",
     "axios": "^0.21.1",
     "big.js": "^6.1.1",
     "bigint-buffer": "^1.1.5",
@@ -50,5 +51,8 @@
     "dotenv": "^10.0.0",
     "dotenv-expand": "^5.1.0",
     "ts-node": "^9.1.1"
+  },
+  "resolutions": {
+    "ansi-regex": "^6.0.1"
   }
 }
