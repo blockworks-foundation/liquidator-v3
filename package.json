@@ -6,7 +6,8 @@
   "main": "lib/src/index.js",
   "types": "lib/src/index.d.ts",
   "scripts": {
-    "liquidator": "ts-node src/liquidator.ts"
+    "liquidator": "ts-node src/liquidator.ts",
+    "test-liquidator": "ts-node test/liquidator.test.ts"
   },
   "devDependencies": {
     "@tsconfig/recommended": "^1.0.1",

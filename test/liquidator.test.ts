@@ -1,4 +1,9 @@
-// test is broken :(
+// This tests the liquidator by creating new liqor & liqee account on devnet.3, opening a BTC long, then crashing the oracle price leading to bankruptcy.
+// The test then runs the liquidator for 60s allowing you to observe the output.
+// Running this test requires:
+// - mango-client-v3 is cloned into the same directory as liquidator-v3 to run the keeper and crank
+// - the shared devnet keypair (Cwg...) is present at ~/.config/solana/devnet.json'
+// Note that the liquidator may fail to rebalance after running due to no liquidity on the orderbook.
 import fs from 'fs';
 import os from 'os';
 import {
@@ -17,6 +22,7 @@ import {
 import { Market } from '@project-serum/serum';
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { spawn } from 'child_process';
+import * as path from 'path';
 
 async function testPerpLiquidationAndBankruptcy() {
   const cluster = (process.env.CLUSTER || 'devnet') as Cluster;
@@ -65,6 +71,7 @@ async function testPerpLiquidationAndBankruptcy() {
 
   // Run keeper
   const keeper = spawn('yarn', ['keeper'], {
+    cwd: path.resolve(__dirname, '../../mango-client-v3/'),
     env: {
       CLUSTER: 'devnet',
       GROUP: 'devnet.3',
@@ -82,8 +89,11 @@ async function testPerpLiquidationAndBankruptcy() {
     console.log(`keeper exited with code ${code}`);
   });
 
+  await sleep(10000);
+
   // Run crank
   const crank = spawn('yarn', ['crank'], {
+    cwd: path.resolve(__dirname, '../../mango-client-v3/'),
     env: {
       CLUSTER: 'devnet',
       GROUP: 'devnet.3',
@@ -98,6 +108,8 @@ async function testPerpLiquidationAndBankruptcy() {
   crank.on('close', (code) => {
     console.log(`crank exited with code ${code}`);
   });
+
+  await sleep(10000);
 
   let cache = await mangoGroup.loadCache(connection);
   const rootBanks = await mangoGroup.loadRootBanks(connection);
