@@ -27,11 +27,11 @@ import * as path from 'path';
 async function testPerpLiquidationAndBankruptcy() {
   const cluster = (process.env.CLUSTER || 'devnet') as Cluster;
   const config = new Config(IDS);
-
+  const keypairPath = os.homedir() + '/.config/solana/devnet.json';
   const payer = new Account(
     JSON.parse(
       process.env.KEYPAIR ||
-        fs.readFileSync(os.homedir() + '/.config/solana/devnet.json', 'utf-8'),
+        fs.readFileSync(keypairPath, 'utf-8'),
     ),
   );
   
@@ -299,7 +299,7 @@ async function testPerpLiquidationAndBankruptcy() {
     env: {
       CLUSTER: 'devnet',
       GROUP: 'devnet.3',
-      KEYPAIR: '/Users/riordan/.config/solana/devnet.json',
+      KEYPAIR: keypairPath,
       LIQOR_PK: liqorAccount.publicKey.toBase58(),
       PATH: process.env.PATH
     },
