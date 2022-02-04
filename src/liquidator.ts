@@ -30,6 +30,7 @@ import axios from 'axios';
 import * as Env from 'dotenv';
 import envExpand from 'dotenv-expand';
 import {Client as RpcWebSocketClient} from 'rpc-websockets';
+import { AsyncBlockingQueue } from './AsyncBlockingQueue';
 
 envExpand(Env.config());
 
@@ -310,10 +311,10 @@ async function maybeLiquidateAccount(mangoAccount: MangoAccount): Promise<boolea
     return true;
 }
 
-async function newAccountOnLiquidatableFeed(params) {
-  console.log(`Checking health of Account ${params.account}...`);
+async function newAccountOnLiquidatableFeed(account) {
+  console.log(`Checking health of Account ${account}...`);
   try {
-    const mangoAccountKey = new PublicKey(params.account);
+    const mangoAccountKey = new PublicKey(account);
     const mangoAccount = new MangoAccount(mangoAccountKey, null);
 
     [cache, liqorMangoAccount, ] = await Promise.all([
@@ -343,17 +344,26 @@ async function newAccountOnLiquidatableFeed(params) {
 
 // never returns
 async function liquidatableFromLiquidatableFeed() {
+  let candidates = new AsyncBlockingQueue<string>();
+  let candidatesSet = new Set<string>();
   const ws = new RpcWebSocketClient(liquidatableFeedWebsocketAddress, {
     max_reconnects: Infinity,
   });
   ws.on('open', (x) => console.log("opened liquidatable feed"));
   ws.on('error', (status) => console.log("error on liquidatable feed", status));
   ws.on('close', (err) => console.log("closed liquidatable feed", err));
-  ws.on('liquidatable', newAccountOnLiquidatableFeed);
+  ws.on('candidate', (params) => {
+      const account = params.account;
+      if (!candidatesSet.has(account)) {
+        candidatesSet.add(account);
+        candidates.enqueue(account);
+      }
+  });
 
-  // fully reactive now
   while (true) {
-    await sleep(5000);
+    const account = await candidates.dequeue();
+    candidatesSet.delete(account);
+    await newAccountOnLiquidatableFeed(account);
   }
 }
 
