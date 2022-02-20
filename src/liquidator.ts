@@ -887,7 +887,7 @@ async function liquidatePerps(
 
     const assetRootBank = rootBanks[maxNetIndex];
     const liqorInitHealth = liqor.getHealth(mangoGroup, cache, 'Init');
-    if (perpAccount.basePosition.isZero()) {
+    if (perpAccount.basePosition.isZero() && maxNet.gt(ZERO_I80F48)) {
       if (assetRootBank) {
         // we know that since sum of perp healths is negative, lowest perp market must be negative
         console.log('liquidateTokenAndPerp', marketIndex);
@@ -922,7 +922,7 @@ async function liquidatePerps(
       const initAssetWeight = perpMarketInfo.initAssetWeight;
       const initLiabWeight = perpMarketInfo.initLiabWeight;
       let baseTransferRequest;
-      if (perpAccount.basePosition.gte(ZERO_BN)) {
+      if (perpAccount.basePosition.gt(ZERO_BN)) {
         // TODO adjust for existing base position on liqor
         baseTransferRequest = new BN(
           liqorInitHealth
