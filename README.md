@@ -6,7 +6,7 @@ To run the liquidator you will need:
 * A Solana account with some SOL deposited to cover transaction fees
 * A Mango Account with some collateral deposited
 * Your wallet keypair saved as a JSON file
-* `node` and `yarn`
+* `node` (v14+) and `yarn`
 * A clone of this repository
 * Dependencies installed with `yarn install`
 
@@ -64,6 +64,7 @@ This mode never triggers advanced orders.
 | `LIQOR_PK` | N/A | Liqor Mango Account Public Key, by default uses the largest value account owned by the keypair |
 | `WEBHOOK_URL` | N/A | Discord webhook URL to post liquidation events and errors to |
 | `LIAB_LIMIT` | `0.9` | Percentage of your available margin to use when taking on liabilities |
+| `MIN_EQUITY` | `0` | Minimum account equity required to liquidate |
 | `LIQUIDATABLE_FEED_WEBSOCKET_ADDRESS` | N/A | Websocket URL of the liquidatable-accounts-feed service, see above |
 
 You can add these variables to a `.env` file in the project root to load automatically on liquidator startup. For example:

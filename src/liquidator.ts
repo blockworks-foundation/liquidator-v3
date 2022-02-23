@@ -67,10 +67,11 @@ const TARGETS = process.env.TARGETS?.replace(/\s+/g,' ').trim().split(' ').map((
 
 // Do not liquidate accounts that have less than this much in value
 const minEquity = parseInt(
-  process.env.MIN_EQUITY || '5',
+  process.env.MIN_EQUITY || '0',
 );
-console.log(`Minimum equity required to bother: ${minEquity}`);
-
+if(minEquity > 0) {
+  console.log(`Minimum equity required to liquidate: ${minEquity}`);
+}
 
 const mangoProgramId = groupIds.mangoProgramId;
 const mangoGroupKey = groupIds.publicKey;
@@ -284,7 +285,7 @@ async function maybeLiquidateAccount(mangoAccount: MangoAccount): Promise<boolea
     }
 
     const equity = mangoAccount.computeValue(mangoGroup, cache).toNumber()
-    if (equity < minEquity) {
+    if (equity < minEquity && minEquity > 0) {
       // console.log(`Account ${mangoAccountKeyString} only has ${equity}, PASS`);
       return false;
     }
