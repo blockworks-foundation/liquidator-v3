@@ -67,6 +67,11 @@ const groupIds =
     throw new Error(`Group ${groupName} not found`);
   })();
 
+
+// The Triton team recommends using the commitment level `confirmed` in order
+// to avoid BlockhashNotFound errors. Adding a parameter.
+const commitmentLevel = process.env.COMMITMENT_LEVEL || 'processed'
+
 // Target values to keep in spot, ordered the same as in mango client's ids.json
 // Example:
 //
@@ -98,9 +103,11 @@ const payer = Keypair.fromSecretKey(
   ),
 );
 
+console.log(`Commitment level: ${commitmentLevel}`);
+
 console.log(`Payer: ${payer.publicKey.toBase58()}`);
 const rpcEndpoint = process.env.ENDPOINT_URL || config.cluster_urls[cluster];
-const connection = new Connection(rpcEndpoint, 'processed' as Commitment);
+const connection = new Connection(rpcEndpoint, commitmentLevel as Commitment);
 const client = new MangoClient(connection, mangoProgramId);
 
 let mangoSubscriptionId = -1;

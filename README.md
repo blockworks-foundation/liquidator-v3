@@ -66,6 +66,7 @@ This mode never triggers advanced orders.
 | `LIAB_LIMIT` | `0.9` | Percentage of your available margin to use when taking on liabilities |
 | `MIN_EQUITY` | `0` | Minimum account equity required to liquidate |
 | `LIQUIDATABLE_FEED_WEBSOCKET_ADDRESS` | N/A | Websocket URL of the liquidatable-accounts-feed service, see above |
+| `COMMITMENT_LEVEL` | `processed` | Commitment level for the connection |
 
 You can add these variables to a `.env` file in the project root to load automatically on liquidator startup. For example:
 ```bash
