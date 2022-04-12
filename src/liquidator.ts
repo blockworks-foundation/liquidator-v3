@@ -389,7 +389,6 @@ async function liquidatableFromLiquidatableFeed() {
     if (!candidatesSet.has(account)) {
       candidatesSet.add(account);
       candidates.enqueue(account);
-      console.log(`Enqueued ${account.publicKey.toBase58()}`);
     }
   });
 
@@ -1064,6 +1063,7 @@ async function balanceAccount(
   spotMarkets: Market[],
   perpMarkets: PerpMarket[],
 ) {
+  return;
   if (Date.now() < lastRebalance + rebalanceInterval) {
     return;
   }
@@ -1330,7 +1330,7 @@ function notify(content: string) {
 }
 
 process.on('unhandledRejection', (err: any, p: any) => {
-  console.error(`Unhandled rejection: ${err} promise: ${p})`);
+  console.error(`Unhandled rejection: ${err} promise: ${p})`, err);
 });
 
 main();
