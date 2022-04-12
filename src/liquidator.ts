@@ -99,6 +99,7 @@ let liqorMangoAccount: MangoAccount;
 let spotMarkets: Market[];
 let perpMarkets: PerpMarket[];
 let rootBanks: (RootBank | undefined)[];
+let mangoAccounts: MangoAccount[] = [];
 
 async function main() {
   console.log(`Starting liquidator for ${groupName}...`);
@@ -172,7 +173,6 @@ async function main() {
 
 // never returns
 async function liquidatableFromSolanaRpc() {
-  let mangoAccounts: MangoAccount[] = [];
   await refreshAccounts(mangoGroup, mangoAccounts);
   watchAccounts(groupIds.mangoProgramId, mangoGroup, mangoAccounts);
 
@@ -372,6 +372,7 @@ async function liquidatableFromLiquidatableFeed() {
       if (!candidatesSet.has(account)) {
         candidatesSet.add(account);
         candidates.enqueue(account);
+        console.log(`Enqueued ${account.publicKey.toBase58()}`)
       }
   });
 
@@ -566,7 +567,7 @@ async function liquidateAccount(
   rootBanks: (RootBank | undefined)[],
   perpMarkets: PerpMarket[],
   liqee: MangoAccount,
-  liqor: MangoAccount,
+  liqor: MangoAccount
 ) {
   const hasPerpOpenOrders = liqee.perpAccounts.some(
     (pa) => pa.bidsQuantity.gt(ZERO_BN) || pa.asksQuantity.gt(ZERO_BN),
@@ -829,7 +830,7 @@ async function liquidatePerps(
   perpMarkets: PerpMarket[],
   rootBanks: (RootBank | undefined)[],
   liqee: MangoAccount,
-  liqor: MangoAccount,
+  liqor: MangoAccount
 ) {
   console.log('liquidatePerps');
   const lowestHealthMarket = perpMarkets
@@ -867,8 +868,8 @@ async function liquidatePerps(
 
   const liqorInitHealth = liqor.getHealth(mangoGroup, cache, 'Init');
   let maxLiabTransfer = liqorInitHealth.mul(liabLimit);
+  const quoteRootBank = rootBanks[QUOTE_INDEX];
   if (liqee.isBankrupt) {
-    const quoteRootBank = rootBanks[QUOTE_INDEX];
     if (quoteRootBank) {
       // don't do anything it if quote position is zero
       console.log('resolvePerpBankruptcy', maxLiabTransfer.toString());
@@ -887,6 +888,16 @@ async function liquidatePerps(
   } else {
     let maxNet = ZERO_I80F48;
     let maxNetIndex = mangoGroup.tokens.length - 1;
+
+    // We need to settle the positive PnLs to make sure that the account has funds
+    // to actually compensate for a liquidation. Otherwise we may end up with a
+    // token liquidation of 0.
+    //
+    // https://discord.com/channels/791995070613159966/826034521261604874/934629112734167060
+    
+    if (quoteRootBank) {
+      await client.settlePosPnl(mangoGroup, cache, liqee, perpMarkets, quoteRootBank, payer, mangoAccounts)  
+    }
 
     for (let i = 0; i < mangoGroup.tokens.length; i++) {
       const price = cache.priceCache[i]
