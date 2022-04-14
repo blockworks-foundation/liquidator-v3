@@ -335,7 +335,7 @@ async function maybeLiquidateAccount(
     notify(`Liquidated account ${mangoAccountKeyString}`);
   } catch (err: any) {
     console.error(
-      `Failed to liquidate account ${mangoAccountKeyString}: ${err}`,
+      `Failed to liquidate account ${mangoAccountKeyString}:`, err
     );
     notify(`Failed to liquidate account ${mangoAccountKeyString}: ${err}`);
   }
