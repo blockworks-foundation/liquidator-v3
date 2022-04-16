@@ -331,13 +331,13 @@ async function maybeLiquidateAccount(
       liqorMangoAccount,
     );
 
-    console.log('Liquidated account', mangoAccountKeyString);
+    console.log('Liquidated account', mangoAccountKeyString); 
     notify(`Liquidated account ${mangoAccountKeyString}`);
   } catch (err: any) {
     console.error(
       `Failed to liquidate account ${mangoAccountKeyString}:`, err
     );
-    notify(`Failed to liquidate account ${mangoAccountKeyString}: ${err}`);
+    notify(`Failed to liquidate account ${mangoAccountKeyString}: ${err} ${JSON.stringify(err)}`);
   }
 
   return true;
