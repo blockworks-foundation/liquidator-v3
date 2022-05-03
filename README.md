@@ -67,6 +67,7 @@ This mode never triggers advanced orders.
 | `MIN_EQUITY` | `0` | Minimum account equity required to liquidate |
 | `LIQUIDATABLE_FEED_WEBSOCKET_ADDRESS` | N/A | Websocket URL of the liquidatable-accounts-feed service, see above |
 | `COMMITMENT_LEVEL` | `processed` | Commitment level for the connection |
+| `CONFIRMATION_TIMEOUT` | `30000` | Milliseconds to wait for transaction confirmation |
 
 You can add these variables to a `.env` file in the project root to load automatically on liquidator startup. For example:
 ```bash
