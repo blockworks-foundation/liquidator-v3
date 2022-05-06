@@ -603,10 +603,11 @@ async function liquidateAccount(
   }
 
   for (let r = 0; r < 5 && liqee.hasAnySpotOrders(); r++) {
-    for (let i = 0; i < mangoGroup.spotMarkets.length; i++) {
+    for (let i = 0; i < groupIds.spotMarkets.length; i++) {
       if (liqee.inMarginBasket[i]) {
-        const spotMarket = spotMarkets[i];
-        const baseRootBank = rootBanks[i];
+        const spotMarketConfig = groupIds.spotMarkets[i];
+        const spotMarket = spotMarkets[spotMarketConfig.marketIndex];
+        const baseRootBank = rootBanks[spotMarketConfig.marketIndex];
         const quoteRootBank = rootBanks[QUOTE_INDEX];
 
         if (baseRootBank && quoteRootBank) {
@@ -1057,6 +1058,7 @@ async function balanceAccount(
   spotMarkets: Market[],
   perpMarkets: PerpMarket[],
 ) {
+  return;
   if (Date.now() < lastRebalance + rebalanceInterval) {
     return;
   }
