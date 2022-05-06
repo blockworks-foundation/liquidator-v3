@@ -14,11 +14,7 @@ import {
   QUOTE_INDEX,
   IDS,
 } from '@blockworks-foundation/mango-client';
-import {
-  Account,
-  Commitment,
-  Connection,
-} from '@solana/web3.js';
+import { Account, Commitment, Connection, Keypair } from '@solana/web3.js';
 import { Market } from '@project-serum/serum';
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { spawn } from 'child_process';
@@ -28,13 +24,12 @@ async function testPerpLiquidationAndBankruptcy() {
   const cluster = (process.env.CLUSTER || 'devnet') as Cluster;
   const config = new Config(IDS);
   const keypairPath = os.homedir() + '/.config/solana/devnet.json';
-  const payer = new Account(
-    JSON.parse(
-      process.env.KEYPAIR ||
-        fs.readFileSync(keypairPath, 'utf-8'),
+  const payer = Keypair.fromSecretKey(
+    new Uint8Array(
+      JSON.parse(process.env.KEYPAIR || fs.readFileSync(keypairPath, 'utf-8')),
     ),
   );
-  
+
   const connection = new Connection(
     config.cluster_urls[cluster],
     'processed' as Commitment,
@@ -75,7 +70,7 @@ async function testPerpLiquidationAndBankruptcy() {
     env: {
       CLUSTER: 'devnet',
       GROUP: 'devnet.3',
-      PATH: process.env.PATH
+      PATH: process.env.PATH,
     },
   });
   // keeper.stdout.on('data', (data) => {
@@ -97,7 +92,7 @@ async function testPerpLiquidationAndBankruptcy() {
     env: {
       CLUSTER: 'devnet',
       GROUP: 'devnet.3',
-      PATH: process.env.PATH
+      PATH: process.env.PATH,
     },
   });
 
@@ -139,21 +134,21 @@ async function testPerpLiquidationAndBankruptcy() {
     payer.publicKey,
   );
 
-  const liqorPk = await client.initMangoAccount(mangoGroup, payer);
+  const liqorPk = (await client.initMangoAccount(mangoGroup, payer))!;
   const liqorAccount = await client.getMangoAccount(
     liqorPk,
     mangoGroup.dexProgramId,
   );
   console.log('Created Liqor:', liqorPk.toBase58());
 
-  const liqeePk = await client.initMangoAccount(mangoGroup, payer);
+  const liqeePk = (await client.initMangoAccount(mangoGroup, payer))!;
   const liqeeAccount = await client.getMangoAccount(
     liqeePk,
     mangoGroup.dexProgramId,
   );
   console.log('Created Liqee:', liqeePk.toBase58());
 
-  const makerPk = await client.initMangoAccount(mangoGroup, payer);
+  const makerPk = (await client.initMangoAccount(mangoGroup, payer))!;
   const makerAccount = await client.getMangoAccount(
     makerPk,
     mangoGroup.dexProgramId,
@@ -301,7 +296,8 @@ async function testPerpLiquidationAndBankruptcy() {
       GROUP: 'devnet.3',
       KEYPAIR: keypairPath,
       LIQOR_PK: liqorAccount.publicKey.toBase58(),
-      PATH: process.env.PATH
+      ENDPOINT_URL: config.cluster_urls[cluster],
+      PATH: process.env.PATH,
     },
   });
 
