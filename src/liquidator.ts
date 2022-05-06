@@ -1058,7 +1058,6 @@ async function balanceAccount(
   spotMarkets: Market[],
   perpMarkets: PerpMarket[],
 ) {
-  return;
   if (Date.now() < lastRebalance + rebalanceInterval) {
     return;
   }
