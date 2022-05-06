@@ -44,7 +44,7 @@ spec:
             - name: INTERVAL
               value: "2500"
             - name: LIQUIDATABLE_FEED_WEBSOCKET_ADDRESS
-              value: ws://10.121.128.214:9123
+              value: ws://10.121.128.148:9123
             - name: PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
