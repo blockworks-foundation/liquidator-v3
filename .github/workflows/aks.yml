@@ -21,7 +21,13 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Build container
+    - name: ACR Docker Login
+      uses: Azure/docker-login@v1
+      with:
+        login-server: ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
+    - name: Build and Push to ACR
       run: |
           docker build . -t ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/v3-liq:${{ github.sha }}
           docker push ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/v3-liq:${{ github.sha }}
