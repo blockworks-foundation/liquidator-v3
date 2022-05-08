@@ -25,8 +25,8 @@ jobs:
       uses: Azure/docker-login@v1
       with:
         login-server: ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io
-        username: ${{ secrets.REGISTRY_USERNAME }}
-        password: ${{ secrets.REGISTRY_PASSWORD }}
+        username: ${{ secrets.AZURE_ACR_USER }}
+        password: ${{ secrets.AZURE_ACR_PASSWORD }}
     - name: Build and Push to ACR
       run: |
           docker build . -t ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/v3-liq:${{ github.sha }}
