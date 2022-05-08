@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: v3-liq
-          image: ${{ secrets.AZURE_CONTAINER_REGISTRY }}.azurecr.io/PROJECT_ID/IMAGE:TAG
+          image: mango.azurecr.io/PROJECT_ID/IMAGE:TAG
           imagePullPolicy: Always
           resources:
             limits:
