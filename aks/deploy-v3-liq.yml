@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: v3-liq
-          image: mango.azurecr.io/PROJECT_ID/IMAGE:TAG
+          image: mango.azurecr.io/v3-liq:latest
           imagePullPolicy: Always
           resources:
             limits:
