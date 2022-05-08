@@ -30,6 +30,7 @@ jobs:
           docker push ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/v3-liq:${{ github.sha }}
   deploy:
     runs-on: ubuntu-latest
+    needs: build
     steps:
     - name: Azure Login
       uses: azure/login@v1
