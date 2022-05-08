@@ -23,7 +23,6 @@ jobs:
 
     - name: Build container
       run: |
-          docker login ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io
           docker build . -t ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/v3-liq:${{ github.sha }}
           docker push ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/v3-liq:${{ github.sha }}
 
