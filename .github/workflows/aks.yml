@@ -1,0 +1,35 @@
+name: Build and deploy to Azure Kubernetes Service
+
+env:
+  AZURE_CONTAINER_REGISTRY: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
+  RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+  CLUSTER_NAME: ${{ secrets.AZURE_CLUSTER_NAME }}
+
+on:
+  push:
+    branches: 
+      - "k8s"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Azure Login
+      uses: azure/login@89d153571fe9a34ed70fcf9f1d95ab8debea7a73
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Build container
+      run: |
+          docker build . -t ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/v3-liq:${{ github.sha }}
+          docker push ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/v3-liq:${{ github.sha }}
+
+    - name: Gets K8s context
+      uses: azure/aks-set-context@4e5aec273183a197b181314721843e047123d9fa
+      with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.CLUSTER_NAME }}
+      id: login
