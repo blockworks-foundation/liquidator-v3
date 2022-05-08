@@ -17,7 +17,7 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: Azure Login
-      uses: azure/login@89d153571fe9a34ed70fcf9f1d95ab8debea7a73
+      uses: azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -33,9 +33,18 @@ jobs:
           docker push ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/v3-liq:${{ github.sha }}
 
     - name: Gets K8s context
-      uses: azure/aks-set-context@4e5aec273183a197b181314721843e047123d9fa
+      uses: azure/aks-set-context@v2.0
       with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
           resource-group: ${{ env.RESOURCE_GROUP }}
           cluster-name: ${{ env.CLUSTER_NAME }}
       id: login
+    - uses: azure/k8s-bake@v2.2
+      with:
+        renderEngine: "kustomize"
+        kustomizationPath: "./aks/"
+        kubectl-version: "latest"
+      id: bake
+    - uses: Azure/k8s-deploy@v3.1
+      with:
+        manifests: ${{ steps.bake.outputs.manifestsBundle }}
