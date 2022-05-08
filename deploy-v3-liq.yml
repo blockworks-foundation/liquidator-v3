@@ -24,8 +24,8 @@ spec:
           imagePullPolicy: Always
           resources:
             limits:
-              cpu: 1000m
-              memory: 4Gi
+              cpu: 1250m
+              memory: 6Gi
             requests:
               cpu: 1000m
               memory: 4Gi
@@ -42,7 +42,7 @@ spec:
             - name: GROUP
               value: mainnet.1
             - name: INTERVAL
-              value: "2500"
+              value: "3000"
             - name: PRIVATE_KEY
               valueFrom:
                 secretKeyRef:

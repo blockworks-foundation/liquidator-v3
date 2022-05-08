@@ -24,11 +24,11 @@ spec:
           imagePullPolicy: Always
           resources:
             limits:
-              cpu: 1000m
-              memory: 4Gi
+              cpu: 500m
+              memory: 256Mi
             requests:
-              cpu: 1000m
-              memory: 4Gi
+              cpu: 250m
+              memory: 128Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -48,15 +48,15 @@ spec:
             - name: PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: v3-liq
+                  name: v3-liq-laf
                   key: private-key
             - name: ENDPOINT_URL
               valueFrom:
                 secretKeyRef:
-                  name: v3-liq
+                  name: v3-liq-laf
                   key: endpoint-url
             - name: WEBHOOK_URL
               valueFrom:
                 secretKeyRef:
-                  name: v3-liq
+                  name: v3-liq-laf
                   key: webhook-url

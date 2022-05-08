@@ -11,7 +11,7 @@ COPY test test
 COPY tsconfig.json tsconfig.json
 RUN yarn build
 
-FROM node:16 AS v3-liq
+FROM node:slim AS v3-liq
 
 COPY --from=v3-ts node_modules node_modules
 COPY --from=v3-ts lib lib
