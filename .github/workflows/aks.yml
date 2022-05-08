@@ -27,14 +27,14 @@ jobs:
     - name: Build and Push to ACR
       run: |
           docker build . -t ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/v3-liq:${{ github.sha }} -t ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/v3-liq:latest
-          docker push ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/v3-liq:${{ github.sha }}
+          docker push ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/v3-liq:${{ github.sha }} -t ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/v3-liq:latest
   deploy:
     runs-on: ubuntu-latest
     needs: build
     steps:
     - name: Checkout
       uses: actions/checkout@v3
-      
+
     - name: Azure Login
       uses: azure/login@v1
       with:
