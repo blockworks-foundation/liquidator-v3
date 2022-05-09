@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - deploy-v3-liq.yml
   - deploy-v3-liq-laf.yml
+  - deploy-v3-liq-laf-1.yml
