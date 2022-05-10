@@ -77,7 +77,7 @@ const TARGETS = process.env.TARGETS?.replace(/\s+/g, ' ')
   .map((s) => parseFloat(s)) ?? [0, 0, 0, 0, 0, 0, 0, 0, 0];
 
 // Do not liquidate accounts that have less than this much in value
-const minEquity = parseInt(process.env.MIN_EQUITY || '0');
+const minEquity = parseFloat(process.env.MIN_EQUITY || '0');
 if (minEquity > 0) {
   console.log(`Minimum equity required to liquidate: ${minEquity}`);
 }
