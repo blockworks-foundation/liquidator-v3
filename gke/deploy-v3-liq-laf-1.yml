@@ -43,6 +43,8 @@ spec:
               value: mainnet.1
             - name: INTERVAL
               value: "2500"
+            - name: MIN_EQUITY
+              value: "0.62"
             - name: LIQUIDATABLE_FEED_WEBSOCKET_ADDRESS
               value: ws://10.121.128.69:9123
             - name: PRIVATE_KEY
