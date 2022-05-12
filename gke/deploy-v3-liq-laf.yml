@@ -45,6 +45,8 @@ spec:
               value: "2500"
             - name: LIAB_LIMIT
               value: "0.7"
+            - name: MIN_EQUITY
+              value: "0.2"
             - name: LIQUIDATABLE_FEED_WEBSOCKET_ADDRESS
               value: ws://10.121.128.69:9123
             - name: PRIVATE_KEY

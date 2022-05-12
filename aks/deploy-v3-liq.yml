@@ -45,6 +45,8 @@ spec:
               value: "3000"
             - name: LIAB_LIMIT
               value: "0.7"
+            - name: MIN_EQUITY
+              value: "0.2"
             - name: PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
