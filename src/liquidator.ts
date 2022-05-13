@@ -77,7 +77,7 @@ const TARGETS = process.env.TARGETS?.replace(/\s+/g, ' ')
   .map((s) => parseFloat(s)) ?? [0, 0, 0, 0, 0, 0, 0, 0, 0];
 
 // Do not liquidate accounts that have less than this much in value
-const minEquity = parseFloat(process.env.MIN_EQUITY || '0');
+const minEquity = parseInt(process.env.MIN_EQUITY || '0');
 if (minEquity > 0) {
   console.log(`Minimum equity required to liquidate: ${minEquity}`);
 }
@@ -603,11 +603,10 @@ async function liquidateAccount(
   }
 
   for (let r = 0; r < 5 && liqee.hasAnySpotOrders(); r++) {
-    for (let i = 0; i < groupIds.spotMarkets.length; i++) {
+    for (let i = 0; i < mangoGroup.spotMarkets.length; i++) {
       if (liqee.inMarginBasket[i]) {
-        const spotMarketConfig = groupIds.spotMarkets[i];
-        const spotMarket = spotMarkets[spotMarketConfig.marketIndex];
-        const baseRootBank = rootBanks[spotMarketConfig.marketIndex];
+        const spotMarket = spotMarkets[i];
+        const baseRootBank = rootBanks[i];
         const quoteRootBank = rootBanks[QUOTE_INDEX];
 
         if (baseRootBank && quoteRootBank) {
@@ -1275,7 +1274,7 @@ async function closePositions(
             side,
             orderPrice,
             basePositionSize,
-            'ioc',
+            'limit',
             0,
             bookSideInfo ? bookSideInfo : undefined,
             true,
