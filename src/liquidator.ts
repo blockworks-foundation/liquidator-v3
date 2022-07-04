@@ -21,8 +21,19 @@ import {
   MangoClient,
   sleep,
   ZERO_I80F48,
+  MarketMode,
+  makeLiquidateDelistingTokenInstruction,
+  makeForceSettlePerpPositionInstruction,
+  TokenAccountLayout,
+  TokenAccount,
 } from '@blockworks-foundation/mango-client';
-import { Commitment, Connection, Keypair, PublicKey } from '@solana/web3.js';
+import {
+  Commitment,
+  Connection,
+  Keypair,
+  PublicKey,
+  Transaction,
+} from '@solana/web3.js';
 import { Market, OpenOrders } from '@project-serum/serum';
 import BN from 'bn.js';
 import { Orderbook } from '@project-serum/serum/lib/market';
@@ -31,6 +42,11 @@ import * as Env from 'dotenv';
 import envExpand from 'dotenv-expand';
 import { Client as RpcWebSocketClient } from 'rpc-websockets';
 import { AsyncBlockingQueue } from './AsyncBlockingQueue';
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  Token,
+  TOKEN_PROGRAM_ID,
+} from '@solana/spl-token';
 
 envExpand(Env.config());
 
@@ -47,6 +63,9 @@ const rebalanceInterval = parseInt(process.env.INTERVAL_REBALANCE || '10000');
 const checkTriggers = process.env.CHECK_TRIGGERS
   ? process.env.CHECK_TRIGGERS === 'true'
   : true;
+const checkDelisting = process.env.CHECK_DELISTING
+  ? process.env.CHECK_DELISTING === 'true'
+  : false;
 const liabLimit = I80F48.fromNumber(
   Math.min(parseFloat(process.env.LIAB_LIMIT || '0.9'), 1),
 );
@@ -188,9 +207,423 @@ async function main() {
 }
 
 // never returns
+async function checkMangoGroup() {
+  console.log('reloading group');
+
+  mangoGroup = await client.getMangoGroup(mangoGroupKey);
+  await mangoGroup.loadRootBanks(connection);
+  while (true) {
+    try {
+      for (let i = 0; i < mangoGroup.tokens.length; i++) {
+        const tokenInfo = mangoGroup.tokens[i];
+
+        if (tokenInfo.spotMarketMode == MarketMode.ForceCloseOnly) {
+          console.log('force closing spot market', i);
+          const market = await Market.load(
+            connection,
+            mangoGroup.spotMarkets[i].spotMarket,
+            undefined,
+            mangoGroup.dexProgramId,
+          );
+
+          const [dustAccountPk] = await PublicKey.findProgramAddress(
+            [
+              mangoGroup.publicKey.toBytes(),
+              Buffer.from('DustAccount', 'utf-8'),
+            ],
+            groupIds.mangoProgramId,
+          );
+
+          // Get liqor ATA
+          const liqorLiabTokenAccountPk = await Token.getAssociatedTokenAddress(
+            ASSOCIATED_TOKEN_PROGRAM_ID,
+            TOKEN_PROGRAM_ID,
+            tokenInfo.mint,
+            liqorMangoAccount.owner,
+          );
+          let liqorLiabTokenAccountInfo = await connection.getAccountInfo(
+            liqorLiabTokenAccountPk,
+          );
+          if (!liqorLiabTokenAccountInfo) {
+            console.log('creating ata for liqor');
+            const createAccountTx = new Transaction().add(
+              Token.createAssociatedTokenAccountInstruction(
+                ASSOCIATED_TOKEN_PROGRAM_ID,
+                TOKEN_PROGRAM_ID,
+                tokenInfo.mint,
+                liqorLiabTokenAccountPk,
+                liqorMangoAccount.owner,
+                payer.publicKey,
+              ),
+            );
+            await client.sendTransaction(createAccountTx, payer, []);
+            liqorLiabTokenAccountInfo = (await connection.getAccountInfo(
+              liqorLiabTokenAccountPk,
+            ))!;
+          }
+
+          const liqorLiabTokenAccount = new TokenAccount(
+            liqorLiabTokenAccountPk,
+            TokenAccountLayout.decode(liqorLiabTokenAccountInfo.data),
+          );
+
+          for (let mangoAccount of mangoAccounts) {
+            try {
+              // can't liquidate dust account or the liqor itself
+              if (
+                mangoAccount.publicKey.equals(dustAccountPk) ||
+                mangoAccount.publicKey.equals(liqorMangoAccount.publicKey)
+              ) {
+                continue;
+              }
+
+              if (
+                mangoAccount.inMarginBasket[i] ||
+                !mangoAccount.spotOpenOrders[i].equals(PublicKey.default) ||
+                !mangoAccount.getNet(cache.rootBankCache[i], i).eq(ZERO_I80F48)
+              ) {
+                console.log(
+                  'delisting for account',
+                  mangoAccount.publicKey.toBase58(),
+                );
+
+                if (mangoAccount.beingLiquidated && perpMarkets[0]) {
+                  console.log(
+                    'resetBeingLiquidated',
+                    mangoAccount.publicKey.toBase58(),
+                  );
+                  //reset beingLiquidated flag
+                  await client.forceCancelAllPerpOrdersInMarket(
+                    mangoGroup,
+                    mangoAccount,
+                    perpMarkets[0],
+                    payer,
+                    10,
+                  );
+                }
+
+                // Cancel all open orders for this market
+                if (mangoAccount.inMarginBasket[i]) {
+                  console.log(
+                    'cancelAllSpotOrders',
+                    mangoAccount.publicKey.toBase58(),
+                  );
+                  await client.cancelAllSpotOrders(
+                    mangoGroup,
+                    mangoAccount,
+                    market,
+                    payer,
+                    20,
+                  );
+                  mangoAccount = await mangoAccount.reload(
+                    connection,
+                    mangoGroup.dexProgramId,
+                  );
+                }
+
+                if (!mangoAccount.spotOpenOrders[i].equals(zeroKey)) {
+                  console.log(
+                    'closeSpotOpenOrders',
+                    mangoAccount.publicKey.toBase58(),
+                  );
+                  await client.closeSpotOpenOrders(
+                    mangoGroup,
+                    mangoAccount,
+                    payer,
+                    i,
+                    false,
+                  );
+                  await mangoAccount.reload(
+                    connection,
+                    mangoGroup.dexProgramId,
+                  );
+                }
+
+                const liqeeNet = mangoAccount.getNet(cache.rootBankCache[i], i);
+
+                if (!liqeeNet.isZero()) {
+                  const liabRootBank = rootBanks[i]!;
+                  const liabNodeBank = rootBanks[i]!.nodeBankAccounts[0];
+                  const liquidateTx = new Transaction();
+
+                  const maxAmount = liqeeNet.gt(ZERO_I80F48)
+                    ? liqorMangoAccount
+                        .getNativeDeposit(rootBanks[QUOTE_INDEX]!, QUOTE_INDEX)
+                        .div(mangoGroup.getPriceNative(i, cache))
+                        .toNumber()
+                    : liqorLiabTokenAccount.amount;
+
+                  // Find or create liqee ATA
+                  const liqeeLiabTokenAccountPk =
+                    await Token.getAssociatedTokenAddress(
+                      ASSOCIATED_TOKEN_PROGRAM_ID,
+                      TOKEN_PROGRAM_ID,
+                      tokenInfo.mint,
+                      mangoAccount.owner,
+                      true,
+                    );
+                  const liqeeLiabTokenAccountInfo =
+                    await connection.getAccountInfo(liqeeLiabTokenAccountPk);
+                  if (!liqeeLiabTokenAccountInfo) {
+                    console.log('creating ata for liqee');
+                    liquidateTx.add(
+                      Token.createAssociatedTokenAccountInstruction(
+                        ASSOCIATED_TOKEN_PROGRAM_ID,
+                        TOKEN_PROGRAM_ID,
+                        tokenInfo.mint,
+                        liqeeLiabTokenAccountPk,
+                        mangoAccount.owner,
+                        payer.publicKey,
+                      ),
+                    );
+                  }
+
+                  const liquidateIx = makeLiquidateDelistingTokenInstruction(
+                    groupIds.mangoProgramId,
+                    mangoGroup.publicKey,
+                    mangoGroup.mangoCache,
+                    dustAccountPk,
+                    mangoAccount.publicKey,
+                    liqorMangoAccount.publicKey,
+                    payer.publicKey,
+                    rootBanks[QUOTE_INDEX]!.publicKey,
+                    rootBanks[QUOTE_INDEX]!.nodeBanks[0],
+                    liabRootBank.publicKey,
+                    liabNodeBank.publicKey,
+                    liabNodeBank.vault,
+                    liqeeLiabTokenAccountPk,
+                    liqorLiabTokenAccountPk,
+                    mangoGroup.signerKey,
+                    mangoAccount.spotOpenOrders.filter(
+                      (_, i) => mangoAccount.inMarginBasket[i],
+                    ),
+                    liqorMangoAccount.spotOpenOrders.filter(
+                      (_, i) => liqorMangoAccount.inMarginBasket[i],
+                    ),
+                    new BN(maxAmount),
+                  );
+
+                  liquidateTx.add(liquidateIx);
+                  console.log(
+                    'liquidateDelistingToken',
+                    mangoAccount.publicKey.toBase58(),
+                  );
+                  await client.sendTransaction(liquidateTx, payer, []);
+                }
+              }
+            } catch (err) {
+              console.error(
+                'Error liquidating delisting token',
+                mangoAccount.publicKey.toBase58(),
+                err,
+              );
+            }
+          }
+        }
+
+        if (tokenInfo.spotMarketMode == MarketMode.SwappingSpotMarket) {
+          console.log('preparing spot market for swapping', i);
+          for (let mangoAccount of mangoAccounts) {
+            try {
+              if (mangoAccount.inMarginBasket[i]) {
+                const market = await Market.load(
+                  connection,
+                  mangoGroup.spotMarkets[i].spotMarket,
+                  undefined,
+                  mangoGroup.dexProgramId,
+                );
+
+                console.log(
+                  'cancelAllSpotOrders',
+                  mangoAccount.publicKey.toBase58(),
+                );
+                await client.cancelAllSpotOrders(
+                  mangoGroup,
+                  mangoAccount,
+                  market,
+                  payer,
+                  20,
+                );
+
+                console.log('settleFunds', mangoAccount.publicKey.toBase58());
+                await client.settleFunds(
+                  mangoGroup,
+                  mangoAccount,
+                  payer,
+                  market,
+                );
+
+                await client.closeSpotOpenOrders(
+                  mangoGroup,
+                  mangoAccount,
+                  payer,
+                  i,
+                );
+              }
+            } catch (err) {
+              console.error(
+                'Error closing openorders',
+                mangoAccount.publicKey.toBase58(),
+                err,
+              );
+            }
+          }
+        }
+
+        if (tokenInfo.perpMarketMode == MarketMode.ForceCloseOnly) {
+          console.log('force closing perp market', i);
+          const perpMarket = perpMarkets.find((x) =>
+            x.publicKey.equals(mangoGroup.perpMarkets[i].perpMarket),
+          )!;
+          const mngoVault = new TokenAccount(
+            perpMarket.mngoVault,
+            await connection.getAccountInfo(perpMarket.mngoVault),
+          );
+          const rawPrice = cache.priceCache[i].price;
+
+          for (let mangoAccount of mangoAccounts) {
+            try {
+              const perpAccount = mangoAccount.perpAccounts[i];
+              // Cancel all open orders for this market
+              if (
+                perpAccount.bidsQuantity.gt(ZERO_BN) ||
+                perpAccount.asksQuantity.gt(ZERO_BN)
+              ) {
+                console.log(
+                  'cancelAllPerpOrders',
+                  mangoAccount.publicKey.toBase58(),
+                );
+                try {
+                  await client.cancelAllPerpOrders(
+                    mangoGroup,
+                    [perpMarket],
+                    mangoAccount,
+                    payer,
+                    false,
+                  );
+                } catch (err) {
+                  console.log(
+                    'Error cancelling perp orders',
+                    mangoAccount.publicKey.toBase58(),
+                    err,
+                  );
+                }
+              }
+
+              // Redeem all MNGO
+              if (perpAccount.mngoAccrued.gt(ZERO_BN) && mngoVault.amount > 0) {
+                console.log('redeemMngo', mangoAccount.publicKey.toBase58());
+                const MNGO_INDEX = groupIds!.oracles.findIndex(
+                  (t) => t.symbol === 'MNGO',
+                );
+                const mngoRootBank = rootBanks[MNGO_INDEX]!;
+                const mngoNodeBank = rootBanks[MNGO_INDEX]!.nodeBankAccounts[0];
+                await client.redeemMngo(
+                  mangoGroup,
+                  mangoAccount,
+                  perpMarket,
+                  payer,
+                  mngoRootBank.publicKey,
+                  mngoNodeBank.publicKey,
+                  mngoNodeBank.vault,
+                );
+              }
+
+              // Find an account with opposite base position and force settle against it
+              let basePosition = mangoAccount.perpAccounts[i].basePosition;
+              const quotePosition = mangoAccount.perpAccounts[
+                i
+              ].getQuotePosition(cache.perpMarketCache[i]);
+
+              if (basePosition.isZero() && quotePosition.isZero()) {
+                continue;
+              }
+
+              const sign = basePosition.gt(ZERO_BN) ? 1 : -1;
+
+              // get all accounts with an opposite base position
+              const oppositeSignAccounts = mangoAccounts.filter((x) =>
+                sign < 0
+                  ? x.perpAccounts[i].basePosition.gt(ZERO_BN)
+                  : x.perpAccounts[i].basePosition.lt(ZERO_BN),
+              );
+              const settleTx = new Transaction();
+
+              for (const account of oppositeSignAccounts) {
+                if (account.publicKey.equals(mangoAccount.publicKey)) {
+                  continue;
+                }
+                const otherBasePosition = account.perpAccounts[i].basePosition;
+                // TODO test limit of 10, will it exceed max length?
+                if (settleTx.instructions.length < 10) {
+                  console.log(
+                    'found account to settle against',
+                    basePosition.toNumber(),
+                    otherBasePosition.toNumber(),
+                  );
+                  settleTx.add(
+                    makeForceSettlePerpPositionInstruction(
+                      groupIds.mangoProgramId,
+                      mangoGroup.publicKey,
+                      mangoAccount.publicKey,
+                      account.publicKey,
+                      mangoGroup.mangoCache,
+                      perpMarket.publicKey,
+                    ),
+                  );
+                  basePosition = basePosition.add(otherBasePosition);
+                  const postSign = basePosition.gt(ZERO_BN) ? 1 : -1;
+                  if (postSign !== sign) {
+                    break;
+                  }
+                }
+              }
+
+              if (settleTx.instructions.length > 0) {
+                console.log(
+                  'force settling for',
+                  mangoAccount.publicKey.toBase58(),
+                );
+                await client.sendTransaction(settleTx, payer, []);
+              } else {
+                console.log('no accounts found to settle against');
+              }
+
+              await client.settlePnl(
+                mangoGroup,
+                cache,
+                mangoAccount,
+                perpMarket,
+                rootBanks[QUOTE_INDEX]!,
+                rawPrice,
+                payer,
+                mangoAccounts,
+              );
+            } catch (err) {
+              console.error(
+                'Error force closing perps',
+                mangoAccount.publicKey,
+                err,
+              );
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error checking for delisting markets', err);
+    }
+    await sleep(60000);
+  }
+}
+
+// never returns
 async function liquidatableFromSolanaRpc() {
   await refreshAccounts(mangoGroup, mangoAccounts);
   watchAccounts(groupIds.mangoProgramId, mangoGroup, mangoAccounts);
+
+  if (checkDelisting) {
+    checkMangoGroup();
+  }
 
   // eslint-disable-next-line
   while (true) {
@@ -549,6 +982,16 @@ async function processTriggerOrders(
     const configMarketIndex = groupIds.perpMarkets.findIndex(
       (pm) => pm.marketIndex === trigger.marketIndex,
     );
+
+    // Remove advanced orders if the market is in force close
+    if (
+      mangoGroup.tokens[trigger.marketIndex].perpMarketMode ==
+      MarketMode.ForceCloseOnly
+    ) {
+      console.log('removeAdvancedOrder', mangoAccount.publicKey.toBase58(), i);
+      return client.removeAdvancedOrder(mangoGroup, mangoAccount, payer, i);
+    }
+
     if (
       (trigger.triggerCondition == 'above' &&
         currentPrice.gt(trigger.triggerPrice)) ||
