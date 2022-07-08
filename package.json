@@ -37,7 +37,7 @@
     "trailingComma": "all"
   },
   "dependencies": {
-    "@blockworks-foundation/mango-client": "https://github.com/blockworks-foundation/mango-client-v3.git#pan/delist_market_checks",
+    "@blockworks-foundation/mango-client": "^3.6.5",
     "@project-serum/anchor": "^0.21.0",
     "@project-serum/serum": "0.13.55",
     "@project-serum/sol-wallet-adapter": "^0.2.0",
